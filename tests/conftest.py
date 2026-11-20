@@ -1,3 +1,6 @@
+import os
+os.environ["GATEWAY_LOG_FILE"] = ""
+
 import pytest
 import logging
 from fastapi.testclient import TestClient
