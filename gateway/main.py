@@ -1,4 +1,5 @@
 import time
+import asyncio
 import uuid
 import json
 from typing import Annotated
@@ -17,6 +18,14 @@ from gateway.logging_setup import emit, new_request_id, request_id_var, setup
 from gateway.streaming import stream_events
 VERSION = "0.1.0"
 log = setup()
+_sem = None
+
+
+def semaphore():
+    global _sem
+    if _sem is None:
+        _sem = asyncio.Semaphore(load_settings().max_concurrency)
+    return _sem
 app = FastAPI(title="LLM 统一网关", version=VERSION)
 
 
