@@ -1,3 +1,4 @@
+# Multi-stage build: builder installs deps + warms tiktoken cache; runtime only copies /app/.venv
 ARG BASE_IMAGE=docker.m.daocloud.io/library/python:3.12-slim
 
 # ---------- builder：施工 ----------
