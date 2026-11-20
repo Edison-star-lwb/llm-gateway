@@ -1,3 +1,4 @@
+"""Async load test tool: measures RPS, p50/p95 latency against gateway."""
 import argparse
 import asyncio
 import json
