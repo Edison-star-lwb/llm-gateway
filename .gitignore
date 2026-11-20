@@ -1,0 +1,23 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.env
+__pycache__/
+*.tar
+.venv/
+.tiktoken-cache/
+app.log
+data/
+bench_result*.json
+body*.json
+check_*.py
+openai.json
+sse.bin
+stream.txt

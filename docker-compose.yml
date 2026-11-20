@@ -1,0 +1,16 @@
+services:
+  gateway:
+    build:
+      context: .
+      args:
+        BASE_IMAGE: docker.m.daocloud.io/library/python:3.12-slim
+    image: llm-gateway:local
+    container_name: gateway
+    env_file:
+      - .env
+    ports:
+      - "8100:8100"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    init: true
