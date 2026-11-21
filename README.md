@@ -1,5 +1,5 @@
 # LLM Gateway
-
+[![CI](https://github.com/Edison-star-lwb/llm-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/Edison-star-lwb/llm-gateway/actions/workflows/ci.yml)
 OpenAI-compatible LLM gateway: multi-provider routing, auth, rate limiting, token accounting.
 
 ## 这是什么
