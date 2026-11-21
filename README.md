@@ -59,7 +59,10 @@ cd llm-gateway
 `.env.example` 里已经把 `MOCK_LLM=1` 设成默认，所以**下面两条路都不需要真实 Key、不会产生任何账单**。
 
 **A. 本机 uv（不装 Docker）**
-
+> A、B 两条路抢同一个 8100 端口，且 `docker-compose.yml` 写死了 `container_name: gateway`，
+> 所以同一台机器上只能存在一份。跑 A 之前先执行 `docker rm gateway`
+> （注意：`docker stop` 只停止容器，**不释放容器名**，接着跑 B 会撞 `Conflict`）。
+> 用 `docker ps -a --filter name=gateway` 确认已经没有了。
 Linux / macOS：
 
 ```bash
@@ -108,7 +111,8 @@ curl.exe http://127.0.0.1:8100/health
 
 - `uv: command not found` → 上面的安装没生效，重开一个终端
 - `No pyproject.toml found` 或 `ModuleNotFoundError: No module named 'gateway'` → 你不在仓库根目录，`cd llm-gateway`；如果报错路径里出现 `Anaconda`，说明 `uv run` 退回用了全局环境
-- `address already in use` / `container name "/gateway" is already in use` → 8100 或容器名被上一份占用，见「常见问题」第 4、5 条
+- `[Errno 10048]` / `address already in use` → 8100 被占，见「常见问题」第 6 条
+- `container name "/gateway" is already in use` → 容器名被占，见「常见问题」第 7 条
 
 ## 配置
 
@@ -132,6 +136,14 @@ Copy-Item .env.example .env     # .env 已在 .gitignore 里，不会入库
 `GATEWAY_ALLOWED_KEYS` 的格式是 `Key:调用方名`，冒号右边那个名字会出现在日志、`/metrics` 的 `by_caller` 和 `/usage` 的账本里——这是"谁花了钱"的唯一依据。
 
 ## 怎么用
+> **哪些例子现在就能跑**：按「快速启动」的默认配置（`MOCK_LLM=1`、没填真 Key），
+> **只有例 ② 流式能跑通**。例 ① 和 ③ 打的 `/chat` 与 `/v1/chat/completions`
+> 目前不读 `MOCK_LLM`（见「已知不足」），会返回
+> `{"error":"gateway_not_configured","detail":"缺少环境变量 DEEPSEEK_API_KEY..."}`。
+> 要跑这两个，先把 `.env` 的 `MOCK_LLM` 改成 `0` 并填入真实 Key。
+>
+> 例 ② 在 mock 下返回一段**固定的深圳天气文案**，与你问什么无关——
+> 它验证的是链路（SSE 分帧、鉴权、计费），不是内容质量。
 
 **① 非流式**
 
@@ -146,10 +158,13 @@ curl -s -X POST http://127.0.0.1:8100/chat \
 Windows PowerShell：
 
 ```powershell
-curl.exe -s -X POST http://127.0.0.1:8100/chat `
-  -H "X-API-Key: gw-dev-001" -H "Content-Type: application/json" `
-  -d "{`"model`":`"deepseek-chat`",`"message`":`"用一句话说你是谁`"}"
+curl.exe -s -X POST http://127.0.0.1:8100/chat -H "X-API-Key: gw-dev-001" -H "Content-Type: application/json" -d '{\"model\":\"deepseek-chat\",\"message\":\"用一句话说你是谁\"}'
 ```
+
+> 必须写成一行、必须用单引号包 JSON、内部双引号前加反斜杠。
+> PowerShell 5.1 里 `` "{`"model`":...}" `` 这种写法**会把引号丢掉**，
+> 服务端收到非法 JSON，报 `json_invalid ["body", 1]`。
+
 
 **② 流式（SSE）**
 
@@ -164,9 +179,7 @@ curl -sN -X POST http://127.0.0.1:8100/chat/stream \
 Windows PowerShell：
 
 ```powershell
-curl.exe -sN -X POST http://127.0.0.1:8100/chat/stream `
-  -H "X-API-Key: gw-dev-001" -H "Content-Type: application/json" `
-  -d "{`"model`":`"deepseek-chat`",`"message`":`"从1数到5`"}"
+curl.exe -sN -X POST http://127.0.0.1:8100/chat/stream -H "X-API-Key: gw-dev-001" -H "Content-Type: application/json" -d '{\"model\":\"deepseek-chat\",\"message\":\"从1数到5\"}'
 ```
 
 `-N` 不能省：它关掉输出缓冲，否则整段流在结束时一次性打印，你看不出它是流式的。
@@ -180,8 +193,7 @@ uv run pytest -v
 10 个用例（9 个测试函数，其中字段校验那个用 parametrize 展开成 2 例）覆盖鉴权、模型路由、SSE 分帧、重试。**全部走 mock，不需要真实 Key，不会花钱**——CI 上跑的就是这条命令。
 
 ```bash
-uv run python bench.py --base-url http://127.0.0.1:8100 --key gw-dev-001 ^
-  --model deepseek-chat --concurrency 50 --total 200 --stream
+uv run python bench.py --base-url http://127.0.0.1:8100 --key gw-dev-001 --model deepseek-chat --concurrency 50 --total 200 --stream
 ```
 
 `--base-url` `--key` `--concurrency` `--total` `--model` 五个参数都是必填，`--stream` 是开关：带上就打 `/chat/stream`，不带就打 `/v1/chat/completions`。
@@ -274,6 +286,11 @@ step10-gateway/
 **5. 明明改了代码，`/metrics` 还是 404。**
 8100 端口被一个**旧进程**占了，请求根本没进容器。`netstat -ano | findstr :8100` 看 PID，`taskkill /PID <那个数> /F` 干掉再试。判断"是不是新代码"的指纹：`/metrics` 从 404 变成 200。
 
+**6. `uv run uvicorn` 报 `[Errno 10048] error while attempting to bind on address ('127.0.0.1', 8100)`。**
+8100 已被占用。三种来源，按顺序排：① B 路径的容器还在跑 → `docker rm gateway`；② 上一次自己没关的 uvicorn → `netstat -ano | findstr :8100` 拿 PID，再 `taskkill /PID <那个数> /F`；③ 机器上别的常驻服务。**A、B 两条路互斥，同一时刻只能有一条在用 8100。**
+
+**7. `docker compose up` 报 `Conflict. The container name "/gateway" is already in use by container "..."`。**
+`container_name` 写死成 `gateway`，同一机器只能有一份。`docker rm gateway` 删掉旧的再起——`docker stop` 不解决问题，它只停止容器，名字仍然被占用。容器是无状态的，账本在宿主机 `./data` 里，删容器不丢数据。
 ## 贡献流程
 
 Conventional Commits + 一个特性一个分支一个 PR：`feat/` `fix/` `docs/` `test/` `chore/`。
