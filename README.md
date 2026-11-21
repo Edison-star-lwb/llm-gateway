@@ -57,12 +57,11 @@ cd llm-gateway
 ```
 
 `.env.example` 里已经把 `MOCK_LLM=1` 设成默认，所以**下面两条路都不需要真实 Key、不会产生任何账单**。
-
+> **A、B 两条路共用 8100，且 `container_name` 写死成 `gateway`，同一台机器只能存在一份。**
+> 跑之前先 `docker rm gateway`（`docker stop` 只停止、不释放容器名），
+> 再用 `docker ps -a --filter name=gateway` 确认输出为空。
+> 验证是否真的是你在跑的那份：在**当前目录**执行 `docker compose ps`，它只显示本项目的容器。
 **A. 本机 uv（不装 Docker）**
-> A、B 两条路抢同一个 8100 端口，且 `docker-compose.yml` 写死了 `container_name: gateway`，
-> 所以同一台机器上只能存在一份。跑 A 之前先执行 `docker rm gateway`
-> （注意：`docker stop` 只停止容器，**不释放容器名**，接着跑 B 会撞 `Conflict`）。
-> 用 `docker ps -a --filter name=gateway` 确认已经没有了。
 Linux / macOS：
 
 ```bash
