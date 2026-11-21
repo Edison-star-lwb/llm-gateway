@@ -60,25 +60,48 @@ cd llm-gateway
 
 **A. 本机 uv（不装 Docker）**
 
+Linux / macOS：
+
 ```bash
-cp .env.examplcp .env.example .env            # Linux / macOSe .env
-Copy-Item .env.example .env     # Windows PowerShell
+cp .env.example .env
 uv sync --frozen
 uv run uvicorn gateway.main:app --port 8100
 ```
 
-另开一个终端验证：
+Windows PowerShell：
+
+```powershell
+Copy-Item .env.example .env
+uv sync --frozen
+uv run uvicorn gateway.main:app --port 8100
+```
+
+另开一个终端验证（跑服务的那个终端别关）：
 
 ```bash
-curl http://127.0.0.1:8100/health        # Linux / macOS
+curl http://127.0.0.1:8100/health
+```
+
+```powershell
+curl.exe http://127.0.0.1:8100/health
 ```
 
 **B. Docker Compose**（要先启动 Docker Desktop）
 
+Linux / macOS：
+
 ```bash
+cp .env.example .env
+docker compose up -d --build
+curl http://127.0.0.1:8100/health
+```
+
+Windows PowerShell：
+
+```powershell
 Copy-Item .env.example .env
 docker compose up -d --build
-curl.exe http://127.0.0.1:8100/health    # Windows PowerShell
+curl.exe http://127.0.0.1:8100/health
 ```
 
 **跑不通先查这三条**：
