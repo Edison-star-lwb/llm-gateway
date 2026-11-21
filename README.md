@@ -42,29 +42,50 @@ flowchart TD
 
 ## 快速启动
 
+**先决条件**（只需要一次）：
+
+```bash
+# 装 uv（Windows PowerShell）
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# 装 uv（macOS / Linux）
+# curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 拿代码
+git clone https://github.com/Edison-star-lwb/llm-gateway.git
+cd llm-gateway
+```
+
+`.env.example` 里已经把 `MOCK_LLM=1` 设成默认，所以**下面两条路都不需要真实 Key、不会产生任何账单**。
+
 **A. 本机 uv（不装 Docker）**
 
 ```bash
-cp .env.example .env            # 不用填 Key，见下面 MOCK_LLM
-echo "MOCK_LLM=1" >> .env       # 用假上游，零成本跑通
+cp .env.examplcp .env.example .env            # Linux / macOSe .env
+Copy-Item .env.example .env     # Windows PowerShell
 uv sync --frozen
 uv run uvicorn gateway.main:app --port 8100
-curl http://127.0.0.1:8100/health
 ```
 
-**B. Docker Compose**
+另开一个终端验证：
 
 ```bash
-cp .env.example .env
-echo "MOCK_LLM=1" >> .env
-docker compose up -d --build
-curl http://127.0.0.1:8100/health
+curl http://127.0.0.1:8100/health        # Linux / macOS
 ```
 
-两条路都**不需要真实 Key**，因为默认走 mock。要接真供应商，把 `.env` 里的 `MOCK_LLM` 改成 `0` 并填上两把 Key。
+**B. Docker Compose**（要先启动 Docker Desktop）
 
-> Windows PowerShell 里 `cp` 换成 `Copy-Item .env.example .env`，
-> 且必须用 `curl.exe`（`curl` 是 `Invoke-WebRequest` 的别名，不认 `-N`）。
+```bash
+Copy-Item .env.example .env
+docker compose up -d --build
+curl.exe http://127.0.0.1:8100/health    # Windows PowerShell
+```
+
+**跑不通先查这三条**：
+
+- `uv: command not found` → 上面的安装没生效，重开一个终端
+- `No pyproject.toml found` 或 `ModuleNotFoundError: No module named 'gateway'` → 你不在仓库根目录，`cd llm-gateway`；如果报错路径里出现 `Anaconda`，说明 `uv run` 退回用了全局环境
+- `address already in use` / `container name "/gateway" is already in use` → 8100 或容器名被上一份占用，见「常见问题」第 4、5 条
 
 ## 配置
 
@@ -91,44 +112,42 @@ Copy-Item .env.example .env     # .env 已在 .gitignore 里，不会入库
 
 **① 非流式**
 
+Linux / macOS：
+
 ```bash
-curl.exe -s -X POST http://127.0.0.1:8100/chat ^
-  -H "X-API-Key: gw-dev-001" -H "Content-Type: application/json" ^
-  -d "{\"model\":\"deepseek-chat\",\"message\":\"用一句话说你是谁\"}"
+curl -s -X POST http://127.0.0.1:8100/chat \
+  -H "X-API-Key: gw-dev-001" -H "Content-Type: application/json" \
+  -d '{"model":"deepseek-chat","message":"用一句话说你是谁"}'
 ```
 
-返回 `request_id` / `model` / `content` / `usage{prompt_tokens,completion_tokens,total_tokens,source}` / `latency_ms`。
+Windows PowerShell：
+
+```powershell
+curl.exe -s -X POST http://127.0.0.1:8100/chat `
+  -H "X-API-Key: gw-dev-001" -H "Content-Type: application/json" `
+  -d "{`"model`":`"deepseek-chat`",`"message`":`"用一句话说你是谁`"}"
+```
 
 **② 流式（SSE）**
 
+Linux / macOS：
+
 ```bash
-curl.exe -sN -X POST http://127.0.0.1:8100/chat/stream ^
-  -H "X-API-Key: gw-dev-001" -H "Content-Type: application/json" ^
-  -d "{\"model\":\"deepseek-chat\",\"message\":\"从1数到5\"}"
+curl -sN -X POST http://127.0.0.1:8100/chat/stream \
+  -H "X-API-Key: gw-dev-001" -H "Content-Type: application/json" \
+  -d '{"model":"deepseek-chat","message":"从1数到5"}'
 ```
 
-`-N` 不能省：它关掉 curl 的输出缓冲，否则整段流会在结束时一次性打印，你看不出它是流式的。
+Windows PowerShell：
 
-**③ 已有的 OpenAI 代码改两行接过来**
-
-```python
-from openai import OpenAI
-
-client = OpenAI(
-    base_url="http://127.0.0.1:8100/v1",   # 只改这一行
-    api_key="gw-dev-001",                   # 换成网关发的 Key
-)
-r = client.chat.completions.create(
-    model="deepseek-chat",
-    messages=[{"role": "user", "content": "hi"}],
-)
-print(r.choices[0].message.content)
+```powershell
+curl.exe -sN -X POST http://127.0.0.1:8100/chat/stream `
+  -H "X-API-Key: gw-dev-001" -H "Content-Type: application/json" `
+  -d "{`"model`":`"deepseek-chat`",`"message`":`"从1数到5`"}"
 ```
 
-走的是 `/v1/chat/completions`，请求体和响应体都是 OpenAI 原样，所以任何 OpenAI 兼容客户端都能直接指过来。
-
-**注意两个端点的字段名不一样**：`/chat` 收 `message`（字符串），`/v1/chat/completions` 收 `messages`（数组）。写错会直接 422。
-
+`-N` 不能省：它关掉输出缓冲，否则整段流在结束时一次性打印，你看不出它是流式的。
+PowerShell 里必须写 `curl.exe`——`curl` 是 `Invoke-WebRequest` 的别名，不认 `-N`，还会弹出「安全警告 是否要继续?」的交互确认。
 ## 测试与压测
 
 ```bash
@@ -223,7 +242,7 @@ step10-gateway/
 **2. 容器起不来，日志报 `PermissionError: /app/app.log`。**
 镜像里只有 `/app/data` 属于 `app` 用户（`Dockerfile` 里 `chown`，之后 `USER app`）。`GATEWAY_LOG_FILE` 必须是 `/app/data/app.log`。
 
-**3. 日志报 `FileNotFoundError: /app/E:/step10-gateway/app.log`。**
+**3. 日志报 `FileNotFoundError: /app/<你的Windows路径>/app.log`（例如 `/app/E:/projects/app.log`）。**
 同上一条，但根因是你把 Windows 绝对路径写进了 `.env`。容器里没有 `E:`，它被当成相对路径拼到 `/app` 后面。
 
 **4. `curl` 打 `/chat` 返回 422。**
